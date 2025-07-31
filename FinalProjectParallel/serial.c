@@ -3,145 +3,123 @@
 #include <math.h>
 #include <time.h>
 
-#define MAX_POINTS 1000
+#define MAX_POINTS 2000
 
 typedef struct {
     int id;
     double x1, x2, a, b;
-} PointParams;
+} Point;
 
 typedef struct {
     int id;
     double x, y;
 } Position;
 
-void compute_position(PointParams p, double t, double *x, double *y) {
-    *x = ((p.x2 + p.x1) / 2.0) * cos(t * M_PI / 2.0) + (p.x2 - p.x1) / 2.0;
-    *y = p.a * (*x) + p.b;
+void compute_position(Point p, double t, double *x, double *y) {
+    double temp_x = ((p.x2 + p.x1) / 2.0) * cos(t * M_PI / 2.0) + (p.x2 - p.x1) / 2.0;
+    *x = temp_x;
+    *y = p.a * temp_x + p.b;
 }
 
-// Count how many points are within distance D of a given point
-int count_proximity_neighbors(Position* positions, int N, int point_idx, double D) {
+int count_neighbors(Position* pos, int n, int point_idx, double d) {
     int count = 0;
-    for (int j = 0; j < N; j++) {
+    for (int j = 0; j < n; j++) {
         if (j != point_idx) {
-            double dist = hypot(positions[point_idx].x - positions[j].x, 
-                              positions[point_idx].y - positions[j].y);
-            if (dist < D) count++;
+            double dx = pos[point_idx].x - pos[j].x;
+            double dy = pos[point_idx].y - pos[j].y;
+            double dist = sqrt(dx * dx + dy * dy);
+            if (dist < d) count++;
         }
     }
     return count;
 }
 
-// Check if a point satisfies Proximity Criteria (has at least K neighbors within distance D)
-int satisfies_proximity_criteria(Position* positions, int N, int point_idx, int K, double D) {
-    return count_proximity_neighbors(positions, N, point_idx, D) >= K;
+int check_criteria(Position* pos, int n, int point_idx, int k, double d) {
+    int neighbors = count_neighbors(pos, n, point_idx, d);
+    return (neighbors >= k);
 }
 
-// Find 4 points that all satisfy Proximity Criteria
-int find_proximity_quartet(Position* positions, int N, int K, double D, int* quartet) {
-    // Try multiple different starting points to get variety
-    int start_points[] = {0, N/4, N/2, 3*N/4};
+int find_quartet(Position* pos, int n, int k, double d, int* quartet) {
+    int found = 0;
+    int count = 0;
     
-    for (int start_idx = 0; start_idx < 4; start_idx++) {
-        int start = start_points[start_idx];
-        
-        for (int i1 = start; i1 < N - 3; i1++) {
-            if (!satisfies_proximity_criteria(positions, N, i1, K, D)) continue;
-            
-            for (int i2 = i1 + 1; i2 < N - 2; i2++) {
-                if (!satisfies_proximity_criteria(positions, N, i2, K, D)) continue;
-                
-                for (int i3 = i2 + 1; i3 < N - 1; i3++) {
-                    if (!satisfies_proximity_criteria(positions, N, i3, K, D)) continue;
-                    
-                    for (int i4 = i3 + 1; i4 < N; i4++) {
-                        if (satisfies_proximity_criteria(positions, N, i4, K, D)) {
-                            quartet[0] = i1;
-                            quartet[1] = i2;
-                            quartet[2] = i3;
-                            quartet[3] = i4;
-                            return 1; // Found a quartet
-                        }
-                    }
-                }
+    for (int i = 0; i < n && !found; i++) {
+        if (check_criteria(pos, n, i, k, d)) {
+            quartet[count] = i;
+            count++;
+            if (count == 4) {
+                found = 1;
+                break;
             }
         }
     }
-    
-    return 0; // No quartet found
+    return found;
 }
 
 int main() {
-    int N, K, TCount;
-    double D;
-    PointParams points[MAX_POINTS];
-
-    // Read input from file
-    FILE *file = fopen("input.txt", "r");
+    int n, k, tcount;
+    double d;
+    Point points[MAX_POINTS];
+    
+    // Read input file
+    FILE* file = fopen("input.txt", "r");
     if (!file) {
-        printf("Error opening input.txt\n");
+        printf("Cannot open input.txt\n");
         return 1;
     }
-
-    fscanf(file, "%d %d %lf %d", &N, &K, &D, &TCount);
-    for (int i = 0; i < N; i++) {
-        fscanf(file, "%d %lf %lf %lf %lf",
-               &points[i].id,
-               &points[i].x1,
-               &points[i].x2,
-               &points[i].a,
-               &points[i].b);
+    
+    fscanf(file, "%d %d %lf %d", &n, &k, &d, &tcount);
+    for (int i = 0; i < n; i++) {
+        fscanf(file, "%d %lf %lf %lf %lf", &points[i].id, &points[i].x1, 
+               &points[i].x2, &points[i].a, &points[i].b);
     }
     fclose(file);
-
-    // Clear output file
-    FILE *clear = fopen("output.txt", "w");
-    if (clear) fclose(clear);
-
-    clock_t start = clock();  // Start timing
-
-    int total_found = 0;
-
-    for (int i = 0; i <= TCount; i++) {
-        double t = 2.0 * i / TCount - 1.0;
-
-        Position positions[MAX_POINTS];
-        for (int j = 0; j < N; j++) {
+    
+    clock_t start = clock();
+    int found_count = 0;
+    
+    // Process all time steps
+    for (int t_idx = 0; t_idx <= tcount; t_idx++) {
+        double t = 2.0 * t_idx / tcount - 1.0;
+        
+        // Compute positions for all points
+        Position pos[MAX_POINTS];
+        for (int j = 0; j < n; j++) {
             double x, y;
             compute_position(points[j], t, &x, &y);
-            positions[j].x = x;
-            positions[j].y = y;
-            positions[j].id = points[j].id;
+            pos[j].x = x;
+            pos[j].y = y;
+            pos[j].id = points[j].id;
         }
-
+        
+        // Find quartet
         int quartet[4];
-        if (find_proximity_quartet(positions, N, K, D, quartet)) {
-            total_found++;
-            FILE *out = fopen("output.txt", "a");
-            if (out) {
-                fprintf(out,
-                    "Points %d, %d, %d, %d satisfy Proximity Criteria at t = %.4f\n",
-                    positions[quartet[0]].id, positions[quartet[1]].id,
-                    positions[quartet[2]].id, positions[quartet[3]].id, t);
-                fclose(out);
+        if (find_quartet(pos, n, k, d, quartet)) {
+            found_count++;
+            FILE* outfile = fopen("output.txt", "a");
+            if (outfile) {
+                fprintf(outfile, 
+                    "Points %d, %d, %d, %d satisfy criteria at t = %.4f\n",
+                    quartet[0], quartet[1], quartet[2], quartet[3], t);
+                fclose(outfile);
             }
         }
     }
-
-    // Write fallback message if no points found
-    if (total_found == 0) {
-        FILE *out = fopen("output.txt", "a");
-        if (out) {
-            fprintf(out, "There were no 4 points found for any t.\n");
-            fclose(out);
+    
+    // Write message if no points found
+    if (found_count == 0) {
+        FILE* outfile = fopen("output.txt", "a");
+        if (outfile) {
+            fprintf(outfile, "There were no 4 points found for any t.\n");
+            fclose(outfile);
         }
     }
-
-    clock_t end = clock();  // End timing
+    
+    clock_t end = clock();
     double elapsed_secs = (double)(end - start) / CLOCKS_PER_SEC;
     printf("Total elapsed time (serial): %.6f seconds\n", elapsed_secs);
-
+    printf("Total quartets found: %d\n", found_count);
+    
     return 0;
 }
 
