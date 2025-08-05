@@ -28,7 +28,12 @@ int count_neighbors(Position* pos, int n, int point_idx, double d) {
             double dx = pos[point_idx].x - pos[j].x;
             double dy = pos[point_idx].y - pos[j].y;
             double dist = sqrt(dx * dx + dy * dy);
-            if (dist < d) count++;
+            if (dist < d) {
+                count++;
+                if (count >= 3) {  // Stop early when we have enough neighbors
+                    return count;
+                }
+            }
         }
     }
     return count;
@@ -39,15 +44,15 @@ int check_criteria(Position* pos, int n, int point_idx, int k, double d) {
     return (neighbors >= k);
 }
 
-int find_quartet(Position* pos, int n, int k, double d, int* quartet) {
+int find_trio(Position* pos, int n, int k, double d, int* trio) {
     int found = 0;
     int count = 0;
     
     for (int i = 0; i < n && !found; i++) {
         if (check_criteria(pos, n, i, k, d)) {
-            quartet[count] = i;
+            trio[count] = i;
             count++;
-            if (count == 4) {
+            if (count == 3) {
                 found = 1;
                 break;
             }
@@ -92,15 +97,15 @@ int main() {
             pos[j].id = points[j].id;
         }
         
-        // Find quartet
-        int quartet[4];
-        if (find_quartet(pos, n, k, d, quartet)) {
+        // Find trio
+        int trio[3];
+        if (find_trio(pos, n, k, d, trio)) {
             found_count++;
             FILE* outfile = fopen("output.txt", "a");
             if (outfile) {
                 fprintf(outfile, 
-                    "Points %d, %d, %d, %d satisfy criteria at t = %.4f\n",
-                    quartet[0], quartet[1], quartet[2], quartet[3], t);
+                    "Points %d, %d, %d satisfy criteria at t = %.4f\n",
+                    trio[0], trio[1], trio[2], t);
                 fclose(outfile);
             }
         }
@@ -110,7 +115,7 @@ int main() {
     if (found_count == 0) {
         FILE* outfile = fopen("output.txt", "a");
         if (outfile) {
-            fprintf(outfile, "There were no 4 points found for any t.\n");
+            fprintf(outfile, "There were no 3 points found for any t.\n");
             fclose(outfile);
         }
     }
@@ -118,7 +123,7 @@ int main() {
     clock_t end = clock();
     double elapsed_secs = (double)(end - start) / CLOCKS_PER_SEC;
     printf("Total elapsed time (serial): %.6f seconds\n", elapsed_secs);
-    printf("Total quartets found: %d\n", found_count);
+    printf("Total trios found: %d\n", found_count);
     
     return 0;
 }
